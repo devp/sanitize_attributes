@@ -1,0 +1,49 @@
+= SanitizeAttributes
+
+This is a simple plugin for ActiveRecord models to define sanitizable attributes. When an object is saved, those attributes will be run through whatever filter you've defined. You can define a default filter for all sanitizations.
+
+This was made to implement anti-XSS validation. My current gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master 
+
+== Example
+
+ # probably in environment.rb
+ SanitizeAttributes.define_default_sanitization_method do |text|
+   "PLACEHOLDER"
+ end
+ 
+ # app/models/nacho.rb
+ class Nacho
+   sanitize_attributes :foo, :bar
+ end
+ 
+ # app/models/burrito.rb
+ class Burrito
+   sanitize_attributes :baz
+   define_default_sanitization_method_for_class do |text|
+     Sanitize.clean(text)
+   end
+ end
+ 
+ # results...
+ n = Nacho.create!(:foo => 'something')
+ n.foo # => "PLACEHOLDER"
+ b = Burrito.create!(:baz=>'<script>alert(1)</script>')
+ b.baz # => "alert(1)"
+
+== Future Work
+
+The following would be cool:
+
+* allowing strings/symbols for sanitization methods, not just blocks
+
+   Nacho.default_sanitization_method_for_class :microwave # uses Nacho.microwave
+   Nacho.default_sanitization_method_for_class "Sanitize.clean"
+
+* defining sanitization methods at the attribute level. For example:
+
+   class Nacho
+     sanitize_attributes :foo, :bar, :via => :microwave
+     sanitize_attributes :baz, :via => "Sanitize.clean"
+   end
+
+Copyright (c) 2009 Dev Purkayastha, released under the MIT license
