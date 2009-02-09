@@ -5,19 +5,23 @@ ActiveRecord::Base.establish_connection(:adapter => "sqlite3", :dbfile => ":memo
 
 require "#{File.dirname(__FILE__)}/../init"
 
-def setup_db
-  ActiveRecord::Schema.define(:version => 1) do
-    create_table :nachos do |t|
-      t.column :foo, :string
-      t.column :bar, :string
-      t.column :baz, :string      
-      t.column :fleem, :string
-    end
+# setup db: nachos
+ActiveRecord::Schema.define(:version => 1) do
+  create_table :nachos do |t|
+    t.column :foo, :string
+    t.column :bar, :string
+    t.column :baz, :string      
+    t.column :fleem, :string
   end
-end  
+end
 
-def teardown_db
-  ActiveRecord::Base.connection.drop_table(:nachos)
+# setup db: tacos
+ActiveRecord::Schema.define(:version => 1) do
+  create_table :tacos do |t|
+    t.column :filling, :string
+    t.column :topping, :string
+    t.column :wrapping, :string
+  end
 end
 
 class Nacho < ActiveRecord::Base
@@ -26,22 +30,30 @@ class Nacho < ActiveRecord::Base
   sanitize_attributes :baz
 end
 
+class Taco < ActiveRecord::Base
+  sanitize_attributes :topping
+  sanitize_attributes :filling do |s|
+    if s.blank?
+      raise RandomExceptionDueToLackOfFilling
+    end
+  end
+  sanitize_attributes :wrapping do |s|
+    true # a custom validation that runs but does nothing
+  end
+end
+
 class RandomExceptionA < StandardError ; end
 class RandomExceptionB < StandardError ; end
+class RandomExceptionC < StandardError ; end
+class RandomExceptionDueToLackOfFilling < StandardError ; end
 
 class SanitizeAttributesTest < Test::Unit::TestCase
 
   def setup
-    setup_db
-    # reinit the sanitization methods
     SanitizeAttributes.define_default_sanitization_method{|txt| txt.chop}
     Nacho.default_sanitization_method_for_class = nil
   end
 
-  def teardown
-    teardown_db
-  end
-  
   def test_proper_attributes_are_marked_as_sanitizable
     assert_equal [:foo, :bar, :baz], Nacho.sanitizable_attributes
   end
@@ -56,13 +68,23 @@ class SanitizeAttributesTest < Test::Unit::TestCase
     assert_equal bad_string, n.fleem
   end
 
-  def test_definition_of_sanitization_methods
+  def test_definition_of_sanitization_methods_by_class
     SanitizeAttributes.default_sanitization_method = nil
     assert_raise(SanitizeAttributes::NoSanitizationMethodDefined){Nacho.create!}
+    
     SanitizeAttributes.define_default_sanitization_method{ raise RandomExceptionA }
     assert_raise(RandomExceptionA){Nacho.create!}
+    
     Nacho.define_default_sanitization_method_for_class{ raise RandomExceptionB }
     assert_raise(RandomExceptionB){Nacho.create!}
+  end
+  
+  def test_definition_of_sanitization_methods_by_attribute
+    Taco.define_default_sanitization_method_for_class{ nil }
+    assert_raise(RandomExceptionDueToLackOfFilling){Taco.create!} # Taco is defined to requires a non-nil :filling
+    assert Taco.create!(:filling => 'rice') # this should fulfill the :filling validation
+    Taco.define_default_sanitization_method_for_class{ raise RandomExceptionC }
+    assert_raise(RandomExceptionC){Taco.create!(:filling => 'rice')} # this should fulfill the :filling validation, be caught by :topping validation
   end
 
 end
