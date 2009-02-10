@@ -2,6 +2,8 @@
 
 This is a simple plugin for ActiveRecord models to define sanitizable attributes. When an object is saved, those attributes will be run through whatever filter you've defined. You can define a default filter for all sanitizations.
 
+Sanitization only happens for non-nil attributes. (Because a nil attribute may be valid for your model, and the sanitzers should only have to worry about working with strings.)
+
 This was made to implement anti-XSS validation. My current gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master 
 
 == Example
@@ -18,7 +20,7 @@ This was made to implement anti-XSS validation. My current gem of choice is Sani
  
  # app/models/burrito.rb
  class Burrito
-   sanitize_attributes :baz   
+   sanitize_attributes :baz 
    sanitize_attributes :title, :body do |text|
      Sanitize.clean(text)
    end
@@ -33,6 +35,7 @@ This was made to implement anti-XSS validation. My current gem of choice is Sani
  b = Burrito.create!(:baz=>'<script>alert(1)</script>', :title=>'<script>alert(1)</script>')
  b.baz # => "ANOTHER PLACEHOLDER"
  b.title # => "alert(1)"
+ b.body # => unprocessed; sanitzation filters are only run on non-nil values
 
 == Future Work
 

@@ -33,9 +33,8 @@ end
 class Taco < ActiveRecord::Base
   sanitize_attributes :topping
   sanitize_attributes :filling do |s|
-    if s.blank?
-      raise RandomExceptionDueToLackOfFilling
-    end
+    raise RandomExceptionDueToStrangeFilling unless s=='rice'
+    s
   end
   sanitize_attributes :wrapping do |s|
     true # a custom validation that runs but does nothing
@@ -45,7 +44,7 @@ end
 class RandomExceptionA < StandardError ; end
 class RandomExceptionB < StandardError ; end
 class RandomExceptionC < StandardError ; end
-class RandomExceptionDueToLackOfFilling < StandardError ; end
+class RandomExceptionDueToStrangeFilling < StandardError ; end
 
 class SanitizeAttributesTest < Test::Unit::TestCase
 
@@ -71,22 +70,31 @@ class SanitizeAttributesTest < Test::Unit::TestCase
   end
 
   def test_definition_of_sanitization_methods_by_class
+    nacho = Nacho.new(:foo => 'value')
+    
     SanitizeAttributes.default_sanitization_method = nil
-    assert_raise(SanitizeAttributes::NoSanitizationMethodDefined){Nacho.create!}
+    assert_raise(SanitizeAttributes::NoSanitizationMethodDefined){nacho.save!}
     
     SanitizeAttributes.define_default_sanitization_method{ raise RandomExceptionA }
-    assert_raise(RandomExceptionA){Nacho.create!}
+    assert_raise(RandomExceptionA){nacho.save!}
     
     Nacho.define_default_sanitization_method_for_class{ raise RandomExceptionB }
-    assert_raise(RandomExceptionB){Nacho.create!}
+    assert_raise(RandomExceptionB){nacho.save!}
   end
   
   def test_definition_of_sanitization_methods_by_attribute
     Taco.define_default_sanitization_method_for_class{ nil }
-    assert_raise(RandomExceptionDueToLackOfFilling){Taco.create!} # Taco is defined to requires a non-nil :filling
-    assert Taco.create!(:filling => 'rice') # this should fulfill the :filling validation
+    assert_raise(RandomExceptionDueToStrangeFilling){Taco.create!(:filling => 'couscous', :topping => 'salsa')} # Taco is defined to requires a non-rice :filling
+    assert Taco.create!(:filling => 'rice', :topping => 'salsa') # this should fulfill the :filling validation
     Taco.define_default_sanitization_method_for_class{ raise RandomExceptionC }
-    assert_raise(RandomExceptionC){Taco.create!(:filling => 'rice')} # this should fulfill the :filling validation, be caught by :topping validation
+    assert_raise(RandomExceptionC){Taco.create!(:filling => 'rice', :topping => 'salsa')} # this should fulfill the :filling validation, be caught by :topping validation
+  end
+  
+  def test_skip_sanitization_if_attribute_is_nil
+    Nacho.define_default_sanitization_method_for_class do |txt|
+      raise RandomExceptionA if txt.nil? # this should not be called
+    end
+    assert Nacho.create!(:foo => nil)
   end
 
 end

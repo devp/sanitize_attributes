@@ -65,6 +65,7 @@ module SanitizeAttributes
     
     private
       def process_text_via_sanitization_method(txt, attr_name = nil)
+        return nil if txt.nil?
         m =  self.class.get_sanitization_method_for_attribute(attr_name) || # attribute level
              self.class.default_sanitization_method_for_class || # class level
              SanitizeAttributes::default_sanitization_method     # global
