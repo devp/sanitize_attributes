@@ -18,17 +18,21 @@ This was made to implement anti-XSS validation. My current gem of choice is Sani
  
  # app/models/burrito.rb
  class Burrito
-   sanitize_attributes :baz
-   define_default_sanitization_method_for_class do |text|
+   sanitize_attributes :baz   
+   sanitize_attributes :title, :body do |text|
      Sanitize.clean(text)
    end
+   define_default_sanitization_method_for_class do |text|
+     "ANOTHER PLACEHOLDER"
+   end
  end
- 
+  
  # results...
  n = Nacho.create!(:foo => 'something')
  n.foo # => "PLACEHOLDER"
- b = Burrito.create!(:baz=>'<script>alert(1)</script>')
- b.baz # => "alert(1)"
+ b = Burrito.create!(:baz=>'<script>alert(1)</script>', :title=>'<script>alert(1)</script>')
+ b.baz # => "ANOTHER PLACEHOLDER"
+ b.title # => "alert(1)"
 
 == Future Work
 
@@ -39,11 +43,6 @@ The following would be cool:
    Nacho.default_sanitization_method_for_class :microwave # uses Nacho.microwave
    Nacho.default_sanitization_method_for_class "Sanitize.clean"
 
-* defining sanitization methods at the attribute level. For example:
+=== Etc
 
-   class Nacho
-     sanitize_attributes :foo, :bar, :via => :microwave
-     sanitize_attributes :baz, :via => "Sanitize.clean"
-   end
-
-Copyright (c) 2009 Dev Purkayastha, released under the MIT license
+(c) 2009 Dev Purkayastha, released under the MIT license
