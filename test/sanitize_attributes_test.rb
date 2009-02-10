@@ -52,10 +52,12 @@ class SanitizeAttributesTest < Test::Unit::TestCase
   def setup
     SanitizeAttributes.define_default_sanitization_method{|txt| txt.chop}
     Nacho.default_sanitization_method_for_class = nil
+    Taco.default_sanitization_method_for_class = nil
   end
 
   def test_proper_attributes_are_marked_as_sanitizable
-    assert_equal [:foo, :bar, :baz], Nacho.sanitizable_attributes
+    require 'set'
+    assert_equal Set.new([:foo, :bar, :baz]), Set.new(Nacho.sanitizable_attributes)
   end
   
   def test_sanitizable_attributes_are_sanitized
