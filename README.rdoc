@@ -4,47 +4,60 @@ This is a simple plugin for ActiveRecord models to define sanitizable attributes
 
 Sanitization only happens for non-nil attributes. (Because a nil attribute may be valid for your model, and the sanitzers should only have to worry about working with strings.)
 
-This was made to implement anti-XSS validation. My current gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master 
+This plugin was created to implement anti-XSS validation. My current gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master 
 
 == Example
 
  # probably in environment.rb
- SanitizeAttributes.define_default_sanitization_method do |text|
-   "PLACEHOLDER"
+ SanitizeAttributes.default_sanitization_method = lambda do |text|
+   text.gsub(/[^\w\s]/, "") # very simple, very limited
  end
  
- # app/models/nacho.rb
- class Nacho
-   sanitize_attributes :foo, :bar
+ # app/models/bookmark.rb
+ class Bookmark
+   sanitize_attribute :sitename
  end
  
- # app/models/burrito.rb
- class Burrito
-   sanitize_attributes :baz 
-   sanitize_attributes :title, :body do |text|
-     Sanitize.clean(text)
+ # app/models/article.rb
+ class Article
+   default_sanitization_method_for_class = lambda do |text|
+     text.gsub(/[^\w\s'".,?!]/, """) # more reasonable, for titles and such
    end
-   define_default_sanitization_method_for_class do |text|
-     "ANOTHER PLACEHOLDER"
+   
+   sanitize_attributes :title, :author
+   
+   sanitize_attributes :body do |body_text|
+     # This needs to be safe, renderable HTML, so let's use a real sanization tool
+     # I recommend: http://github.com/rgrove/sanitize/tree/master 
+     Sanitize.clean(body_text)
    end
  end
-  
- # results...
- n = Nacho.create!(:foo => 'something')
- n.foo # => "PLACEHOLDER"
- b = Burrito.create!(:baz=>'<script>alert(1)</script>', :title=>'<script>alert(1)</script>')
- b.baz # => "ANOTHER PLACEHOLDER"
- b.title # => "alert(1)"
- b.body # => unprocessed; sanitzation filters are only run on non-nil values
+ 
+ # in action...
+ b = Bookmark.create(:sitename => "boston.rb!!!", :url => "http://http://bostonrb.org/")
+ b.sitename # => "bostonrb"
+ a = Article.create(:title => "<b>Hello</b>!", :body => "Please remove the <script>script tags</script>!")
+ a.title # => "Hello!"
+ a.body  # => "Please remove the script tags!"
+ 
 
 == Future Work
 
-The following would be cool:
+Things to work on in the future:
 
 * allowing strings/symbols for sanitization methods, not just blocks
 
-   Nacho.default_sanitization_method_for_class :microwave # uses Nacho.microwave
-   Nacho.default_sanitization_method_for_class "Sanitize.clean"
+   Nacho.default_sanitization_method_for_class = :microwave # uses Nacho.microwave
+   Nacho.default_sanitization_method_for_class = "Sanitize.clean"
+
+* add validation helpers, if you want to flag problematic text rather than cleaning it.
+
+  class Foo
+    validate_sanitzed :value
+  end
+  Foo.new(:value => "abc").valid? #=> false if a sanitized copy of #value is different than the original
+
+* better functionality for subclasses. Currently, they will share sanitized attributes and sanitization methods across subclasses and the base class.
 
 === Etc
 

@@ -1,100 +1,119 @@
-require 'test/unit'
-require 'rubygems'
-require 'active_record'
-ActiveRecord::Base.establish_connection(:adapter => "sqlite3", :dbfile => ":memory:")
+require "#{File.dirname(__FILE__)}/test_helper"
 
-require "#{File.dirname(__FILE__)}/../init"
-
-# setup db: nachos
-ActiveRecord::Schema.define(:version => 1) do
-  create_table :nachos do |t|
-    t.column :foo, :string
-    t.column :bar, :string
-    t.column :baz, :string      
-    t.column :fleem, :string
+ActiveRecord::Schema.define do
+  create_table :articles do |t|
+    t.column :title, :string
+    t.column :body, :string
+    t.column :review, :string
   end
 end
 
-# setup db: tacos
-ActiveRecord::Schema.define(:version => 1) do
-  create_table :tacos do |t|
-    t.column :filling, :string
-    t.column :topping, :string
-    t.column :wrapping, :string
+ActiveRecord::Schema.define do
+  create_table :albums do |t|
+    t.column :title, :string
+    t.column :artist, :string
+    t.column :rating, :string
   end
 end
 
-class Nacho < ActiveRecord::Base
-  sanitize_attributes :foo
-  sanitize_attributes :foo, :bar
-  sanitize_attributes :baz
+class Article < ActiveRecord::Base
+  sanitize_attributes :title, :body
 end
 
-class Taco < ActiveRecord::Base
-  sanitize_attributes :topping
-  sanitize_attributes :filling do |s|
-    raise RandomExceptionDueToStrangeFilling unless s=='rice'
-    s
-  end
-  sanitize_attributes :wrapping do |s|
-    true # a custom validation that runs but does nothing
-  end
+class Album < ActiveRecord::Base
+  sanitize_attributes :title, :artist
 end
-
-class RandomExceptionA < StandardError ; end
-class RandomExceptionB < StandardError ; end
-class RandomExceptionC < StandardError ; end
-class RandomExceptionDueToStrangeFilling < StandardError ; end
 
 class SanitizeAttributesTest < Test::Unit::TestCase
 
-  def setup
-    SanitizeAttributes.define_default_sanitization_method{|txt| txt.chop}
-    Nacho.default_sanitization_method_for_class = nil
-    Taco.default_sanitization_method_for_class = nil
-  end
-
-  def test_proper_attributes_are_marked_as_sanitizable
-    require 'set'
-    assert_equal Set.new([:foo, :bar, :baz]), Set.new(Nacho.sanitizable_attributes)
-  end
-  
-  def test_sanitizable_attributes_are_sanitized
-    bad_string = "hello <script>alert(1)</script> world"
-    n = Nacho.new(:foo => bad_string, :bar => bad_string, :baz=> bad_string, :fleem => bad_string)
-    assert n.save!
-    [:foo, :bar, :baz].each do |sym|
-      assert_not_equal n.send(sym), bad_string
+  context "Two classes with #sanitizable_attributes in their defnition" do
+    should "not share the same sanitizable_attributes" do
+      assert_not_equal Album.sanitizable_attributes, Article.sanitizable_attributes
     end
-    assert_equal bad_string, n.fleem
-  end
-
-  def test_definition_of_sanitization_methods_by_class
-    nacho = Nacho.new(:foo => 'value')
-    
-    SanitizeAttributes.default_sanitization_method = nil
-    assert_raise(SanitizeAttributes::NoSanitizationMethodDefined){nacho.save!}
-    
-    SanitizeAttributes.define_default_sanitization_method{ raise RandomExceptionA }
-    assert_raise(RandomExceptionA){nacho.save!}
-    
-    Nacho.define_default_sanitization_method_for_class{ raise RandomExceptionB }
-    assert_raise(RandomExceptionB){nacho.save!}
   end
   
-  def test_definition_of_sanitization_methods_by_attribute
-    Taco.define_default_sanitization_method_for_class{ nil }
-    assert_raise(RandomExceptionDueToStrangeFilling){Taco.create!(:filling => 'couscous', :topping => 'salsa')} # Taco is defined to requires a non-rice :filling
-    assert Taco.create!(:filling => 'rice', :topping => 'salsa') # this should fulfill the :filling validation
-    Taco.define_default_sanitization_method_for_class{ raise RandomExceptionC }
-    assert_raise(RandomExceptionC){Taco.create!(:filling => 'rice', :topping => 'salsa')} # this should fulfill the :filling validation, be caught by :topping validation
-  end
-  
-  def test_skip_sanitization_if_attribute_is_nil
-    Nacho.define_default_sanitization_method_for_class do |txt|
-      raise RandomExceptionA if txt.nil? # this should not be called
+  context "#sanitize_attributes" do
+    should "mark expected attributes as sanitizable" do
+      assert_equal Set.new([:title, :body]), Set.new(Article.sanitizable_attributes)
     end
-    assert Nacho.create!(:foo => nil)
+    
+    should "not create duplicates entries" do
+      Article.sanitize_attributes :title
+      assert_equal Set.new([:title, :body]), Set.new(Article.sanitizable_attributes)
+    end
   end
-
+  
+  context "given an undefined sanitization methods" do
+    setup do
+      SanitizeAttributes.default_sanitization_method = nil
+      Article.default_sanitization_method_for_class = nil
+    end
+    
+    should "raise NoSanitizationMethodDefined on #save!" do
+      assert_raise(SanitizeAttributes::NoSanitizationMethodDefined) do
+        Article.create!(:title => "This Article")
+      end
+    end
+  end
+    
+  context "given a defined default sanitization method" do
+    setup do
+      SanitizeAttributes.default_sanitization_method = lambda{|s| s.generic_sanitize}
+      Album.default_sanitization_method_for_class = nil
+      Article.default_sanitization_method_for_class = nil
+    end
+    
+    should "use the default method on #save!, changing only the sanitizable attribute" do
+      title = "This Article"
+      title.expects(:generic_sanitize).returns("sanitized")
+      article = Article.new(:title => title, :review => "do not change")
+      assert article.save!
+      assert_equal "sanitized", article.title
+      assert_equal "do not change", article.review
+    end
+    
+    should "not sanitize nil attributes" do
+      title = nil
+      body = "Lorem Ipsum"
+      title.expects(:generic_sanitize).never
+      body.expects(:generic_sanitize).once
+      article = Article.new(:title => title, :body => body)
+      assert article.save!
+    end
+    
+    context "and defined class-level sanitization methods" do
+      setup do
+        Album.default_sanitization_method_for_class = lambda{Album.album_sanitizer}
+        Article.default_sanitization_method_for_class = lambda{Article.article_sanitizer}
+      end
+      
+      should "use the appropriate method for each class" do
+        Album.expects(:album_sanitizer).times(2)
+        Album.create!(:title => "This Album", :artist => "Rock Star", :rating => "great")
+    
+        Article.expects(:article_sanitizer).times(2)
+        Article.create!(:title => "This Article", :body => "Lorem Ipsum", :review => "awesome")
+      end
+      
+      context "and further attribute-level sanitization" do
+        setup do
+          Album.sanitize_attributes :artist do
+            Album.artist_sanitizer
+          end
+        end
+        
+        teardown do
+          Album.sanitize_attributes :artist # unsetting the attribute-specific block
+        end
+        
+        should "use the appropriate method for each attribute" do
+          Album.expects(:album_sanitizer).once
+          Album.expects(:artist_sanitizer).once
+          Album.create!(:title => "This Album", :artist => "Rock Star", :rating => "great")
+        end        
+      end
+    end
+    
+  end
+    
 end
