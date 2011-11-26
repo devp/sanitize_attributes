@@ -83,8 +83,8 @@ class SanitizeAttributesTest < Test::Unit::TestCase
     
     context "and defined class-level sanitization methods" do
       setup do
-        Album.default_sanitization_method_for_class = lambda{Album.album_sanitizer}
-        Article.default_sanitization_method_for_class = lambda{Article.article_sanitizer}
+        Album.default_sanitization_method_for_class = lambda{|s| Album.album_sanitizer}
+        Article.default_sanitization_method_for_class = lambda{|s| Article.article_sanitizer}
       end
       
       should "use the appropriate method for each class" do
