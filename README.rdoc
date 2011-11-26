@@ -53,12 +53,18 @@ Things to work on in the future:
 * add validation helpers, if you want to flag problematic text rather than cleaning it.
 
   class Foo
-    validate_sanitzed :value
+    validate_sanitized :value
   end
   Foo.new(:value => "abc").valid? #=> false if a sanitized copy of #value is different than the original
 
 * better functionality for subclasses. Currently, they will share sanitized attributes and sanitization methods across subclasses and the base class.
 
 === Etc
+
+Thanks to contributors:
+
+* Josh Nichols
+* Michael Reinsch
+* Paul McMahon
 
 (c) 2009 Dev Purkayastha, released under the MIT license
