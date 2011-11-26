@@ -4,26 +4,30 @@ This is a simple plugin for ActiveRecord models to define sanitizable attributes
 
 Sanitization only happens for non-nil attributes. (Because a nil attribute may be valid for your model, and the sanitzers should only have to worry about working with strings.)
 
-This plugin was created to implement anti-XSS validation. My current gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master 
+This plugin was created to implement anti-XSS validation. My gem of choice is Sanitize: http://github.com/rgrove/sanitize/tree/master
+
+For Rails 3, add this line to your Gemfile:
+
+  gem 'sanitize_attributes', :git => "git@github.com:devp/sanitize_attributes.git"
+
+For Rails 2.3, it should work when installed as a plugin:
+
+  ./script/plugin install git@github.com:devp/sanitize_attributes.git
 
 == Example
 
- # probably in environment.rb
+ # config/initializers/sanitize_attributes.rb
  SanitizeAttributes.default_sanitization_method = lambda do |text|
    text.gsub(/[^\w\s]/, "") # very simple, very limited
  end
  
  # app/models/bookmark.rb
  class Bookmark
-   sanitize_attribute :sitename
+   sanitize_attributes :sitename
  end
  
  # app/models/article.rb
- class Article
-   default_sanitization_method_for_class = lambda do |text|
-     text.gsub(/[^\w\s'".,?!]/, """) # more reasonable, for titles and such
-   end
-   
+ class Article   
    sanitize_attributes :title, :author
    
    sanitize_attributes :body do |body_text|
@@ -31,6 +35,10 @@ This plugin was created to implement anti-XSS validation. My current gem of choi
      # I recommend: http://github.com/rgrove/sanitize/tree/master 
      Sanitize.clean(body_text)
    end
+ end 
+
+ Article.default_sanitization_method_for_class = lambda do |text|
+   text.gsub(/[^\w\s\'".,?!]/, "") # more reasonable, for titles and such
  end
  
  # in action...
